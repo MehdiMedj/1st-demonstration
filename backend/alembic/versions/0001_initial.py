@@ -158,7 +158,7 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             "INSERT INTO organizations (id, name, slug) "
-            "VALUES (:id, :name, :slug) ON CONFLICT (id) DO NOTHING"
+            "VALUES (CAST(:id AS uuid), :name, :slug) ON CONFLICT (id) DO NOTHING"
         ).bindparams(id=DEMO_ORG_ID, name="Demo Base", slug="demo-base")
     )
 

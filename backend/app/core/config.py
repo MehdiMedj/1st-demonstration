@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -27,7 +28,9 @@ class Settings(BaseSettings):
     TELEMETRY_CHANNEL: str = "fleetos:telemetry"
 
     # CORS — comma-separated string in env, exposed as a list.
-    BACKEND_CORS_ORIGINS: list[str] = Field(
+    # NoDecode stops pydantic-settings from JSON-parsing the env value so the
+    # validator below can split a plain comma-separated string.
+    BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"]
     )
 

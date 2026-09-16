@@ -16,7 +16,9 @@ class TelemetryIn(BaseModel):
     speed: float | None = Field(default=None, ge=0, description="km/h")
     fuel_level: float | None = Field(default=None, ge=0, le=100, description="percent")
     timestamp: datetime | None = Field(
-        default=None, description="Device time; defaults to server receipt time (UTC)."
+        default=None,
+        validate_default=True,  # ensure the validator runs when omitted
+        description="Device time; defaults to server receipt time (UTC).",
     )
 
     @field_validator("timestamp")
