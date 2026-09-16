@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (pytest + migrations)
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: fleetos
+          POSTGRES_PASSWORD: fleetos
+          POSTGRES_DB: fleetos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fleetos -d fleetos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://fleetos:fleetos@localhost:5432/fleetos
+      DATABASE_URL_SYNC: postgresql+psycopg://fleetos:fleetos@localhost:5432/fleetos
+      REDIS_URL: redis://localhost:6379/0
+      BACKEND_CORS_ORIGINS: http://localhost:3000
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Apply migrations
+        run: alembic upgrade head
+
+      - name: Run tests
+        run: pytest
+
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
