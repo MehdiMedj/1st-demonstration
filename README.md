@@ -74,6 +74,100 @@ data:
 docker compose exec backend python -m app.seed
 ```
 
+## Getting started & using it
+
+A step-by-step runbook to go from a clean checkout to a working dispatcher.
+
+### 1. Start the stack
+
+```bash
+git clone https://github.com/MehdiMedj/1st-demonstration.git
+cd 1st-demonstration
+cp .env.example .env
+docker compose up --build
+```
+
+This starts four containers — **PostGIS**, **Redis**, the **FastAPI backend**
+(which runs `alembic upgrade head` on boot), and the **Next.js frontend**. Wait
+for the backend to log `Application startup complete`. Ports **3000, 8000, 5432,
+6379** must be free on the host.
+
+### 2. Load demo data (one time)
+
+```bash
+docker compose exec backend python -m app.seed
+```
+
+Creates a demo tenant with 4 vehicles, 4 drivers, 2 geofenced places, and 2
+pending orders.
+
+### 3. Open it
+
+| What                     | URL                                   |
+| ------------------------ | ------------------------------------- |
+| Dispatcher dashboard     | http://localhost:3000/dashboard       |
+| API docs (Swagger)       | http://localhost:8000/docs            |
+| Health check             | http://localhost:8000/health          |
+
+### 4. Use it
+
+On the **dashboard** you'll see the seeded fleet on the map and the orders in the
+**Pending** column:
+
+- Click a vehicle marker for a status tooltip (speed, fuel).
+- On a Pending order click **Assign** → it moves to **Assigned** and the vehicle
+  flips to *en route*; then **Start trip** → **Complete** walks it across the board.
+
+Every API request carries an `X-Org-Id` header — the multi-tenancy key (swap for
+JWT claims in production). The seeded demo tenant id is
+`00000000-0000-0000-0000-000000000001`.
+
+Drive a vehicle live from the CLI — the marker moves instantly over the WebSocket:
+
+```bash
+ORG=00000000-0000-0000-0000-000000000001
+
+# list vehicles, copy an "id"
+curl -s -H "X-Org-Id: $ORG" http://localhost:8000/api/v1/vehicles | jq '.[].id'
+
+# push a GPS/telematics ping (replace <VEHICLE_ID>)
+curl -s -X POST http://localhost:8000/api/v1/telemetry \
+  -H "X-Org-Id: $ORG" -H "Content-Type: application/json" \
+  -d '{"vehicle_id":"<VEHICLE_ID>","latitude":37.7849,"longitude":-122.4094,"speed":45,"fuel_level":80}'
+
+# nearest vehicles to a point (PostGIS ST_DWithin)
+curl -s -H "X-Org-Id: $ORG" \
+  "http://localhost:8000/api/v1/vehicles/nearby?lat=37.7749&lng=-122.4194&radius=5000" | jq
+```
+
+### Stop / reset
+
+```bash
+docker compose down       # stop, keep data
+docker compose down -v    # stop and wipe the database volume
+```
+
+### Local dev (hot reload, no Docker for the apps)
+
+Run only the datastores in Docker, then the apps on the host:
+
+```bash
+# datastores
+docker compose up db redis
+
+# backend (terminal 2)
+cd backend && python -m venv .venv && . .venv/bin/activate
+pip install -r requirements-dev.txt
+export DATABASE_URL=postgresql+asyncpg://fleetos:fleetos@localhost:5432/fleetos
+export DATABASE_URL_SYNC=postgresql+psycopg://fleetos:fleetos@localhost:5432/fleetos
+export REDIS_URL=redis://localhost:6379/0
+alembic upgrade head && python -m app.seed
+uvicorn app.main:app --reload
+
+# frontend (terminal 3)
+cd frontend && npm install && npm run dev
+```
+
 ## Repository layout
 
 ```
