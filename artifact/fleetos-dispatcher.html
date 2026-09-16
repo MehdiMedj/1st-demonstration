@@ -1,0 +1,835 @@
+<title>FleetOS Dispatcher</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+/>
+
+<style>
+  :root {
+    /* light palette (roles) */
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --surface-2: #f4f6fb;
+    --border: #d6dce8;
+    --text: #101828;
+    --muted: #59647d;
+    --accent: #0e9bb8;
+    --accent-soft: rgba(14, 155, 184, 0.12);
+    --ok: #0f9d6f;
+    --route: #2f6df0;
+    --warn: #c07803;
+    --pending: #7c5cf0;
+    --done: #7b869c;
+    --grid: rgba(16, 24, 40, 0.06);
+    --road: rgba(16, 24, 40, 0.16);
+    --water: rgba(47, 109, 240, 0.08);
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 8px 24px rgba(16, 24, 40, 0.06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #080d18;
+      --surface: #111a2c;
+      --surface-2: #0c1424;
+      --border: #223049;
+      --text: #e7edf7;
+      --muted: #8a97b3;
+      --accent: #22d3ee;
+      --accent-soft: rgba(34, 211, 238, 0.14);
+      --ok: #34d399;
+      --route: #60a5fa;
+      --warn: #fbbf24;
+      --pending: #a78bfa;
+      --done: #64748b;
+      --grid: rgba(148, 163, 200, 0.08);
+      --road: rgba(148, 163, 200, 0.18);
+      --water: rgba(56, 90, 160, 0.16);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.4);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #080d18;
+    --surface: #111a2c;
+    --surface-2: #0c1424;
+    --border: #223049;
+    --text: #e7edf7;
+    --muted: #8a97b3;
+    --accent: #22d3ee;
+    --accent-soft: rgba(34, 211, 238, 0.14);
+    --ok: #34d399;
+    --route: #60a5fa;
+    --warn: #fbbf24;
+    --pending: #a78bfa;
+    --done: #64748b;
+    --grid: rgba(148, 163, 200, 0.08);
+    --road: rgba(148, 163, 200, 0.18);
+    --water: rgba(56, 90, 160, 0.16);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.45;
+  }
+  .wrap {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 0 40px;
+  }
+
+  /* ── header ── */
+  header.topbar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 20;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+  .brand h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .brand .tag {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .clock {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--ok);
+    text-transform: uppercase;
+  }
+  .live .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 70%, transparent);
+    animation: pulse 1.8s ease-out infinite;
+  }
+  .live.paused { color: var(--muted); }
+  .live.paused .dot { background: var(--muted); animation: none; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); }
+    70% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ok) 0%, transparent); }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) { .live .dot { animation: none; } }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s, border-color 0.15s, transform 0.05s;
+  }
+  button:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+  button:active { transform: translateY(1px); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-accent {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    color: color-mix(in srgb, var(--accent) 75%, var(--text));
+    font-weight: 600;
+  }
+
+  /* ── kpi strip ── */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+  }
+  .kpi .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi .l {
+    margin-top: 6px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .kpi .n.route { color: var(--route); }
+  .kpi .n.ok { color: var(--ok); }
+  .kpi .n.warn { color: var(--warn); }
+
+  /* ── main split ── */
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-head h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .panel-head .sub {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* map */
+  .map-wrap { position: relative; }
+  #map { display: block; width: 100%; height: 440px; }
+  .legend {
+    position: absolute;
+    left: 12px; bottom: 12px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 7px 10px;
+    backdrop-filter: blur(6px);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .legend .k { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 9px; height: 9px; border-radius: 50%; }
+  .schematic-tag {
+    position: absolute; right: 12px; top: 12px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 7px;
+  }
+  #tooltip {
+    position: absolute;
+    pointer-events: none;
+    z-index: 5;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    line-height: 1.5;
+    box-shadow: var(--shadow);
+    transform: translate(-50%, calc(-100% - 12px));
+    white-space: nowrap;
+  }
+  #tooltip .tt-name { font-weight: 600; color: var(--text); }
+  #tooltip .tt-row { color: var(--muted); }
+
+  /* telemetry feed */
+  .feed { height: 440px; display: flex; flex-direction: column; }
+  .feed-list {
+    overflow-y: auto;
+    padding: 6px 0;
+    flex: 1;
+  }
+  .feed-item {
+    display: grid;
+    grid-template-columns: 62px 1fr auto;
+    gap: 10px;
+    align-items: baseline;
+    padding: 7px 14px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    animation: slideIn 0.25s ease;
+  }
+  @media (prefers-reduced-motion: reduce) { .feed-item { animation: none; } }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .feed-item .t { color: var(--muted); }
+  .feed-item .v { color: var(--text); font-weight: 500; }
+  .feed-item .d { color: var(--muted); text-align: right; }
+  .feed-item .v .veh-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+  /* ── board ── */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .col {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 140px;
+  }
+  .col-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .col-head .title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .col-head .title::before {
+    content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 8px; vertical-align: middle; background: var(--stripe, var(--muted));
+  }
+  .col[data-col="pending"] { --stripe: var(--pending); }
+  .col[data-col="assigned"] { --stripe: var(--warn); }
+  .col[data-col="en_route"] { --stripe: var(--route); }
+  .col[data-col="completed"] { --stripe: var(--ok); }
+  .count {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; color: var(--muted);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 1px 8px; font-variant-numeric: tabular-nums;
+  }
+  .cards { display: flex; flex-direction: column; gap: 8px; padding: 10px; flex: 1; }
+  .order {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--stripe, var(--muted));
+    border-radius: 9px;
+    padding: 10px 11px;
+  }
+  .order .tn {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600; font-size: 12.5px; letter-spacing: 0.02em;
+  }
+  .order .route-line { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+  .order .meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .order .actions { margin-top: 9px; }
+  .order .actions button { padding: 5px 10px; font-size: 12px; }
+  .empty { color: var(--muted); font-size: 12px; text-align: center; padding: 18px 8px; font-family: "IBM Plex Mono", monospace; }
+
+  .note {
+    margin-top: 18px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex; gap: 8px; align-items: flex-start;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 11px 13px;
+  }
+  .note code {
+    font-family: "IBM Plex Mono", monospace;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 5px; padding: 1px 5px; font-size: 11px;
+  }
+
+  /* toast */
+  #toast {
+    position: fixed;
+    left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: var(--bg);
+    padding: 9px 16px; border-radius: 999px;
+    font-size: 13px; font-weight: 500;
+    box-shadow: var(--shadow);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 40;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+    .feed { height: 260px; }
+    .board { grid-template-columns: repeat(2, 1fr); }
+    .kpis { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 520px) {
+    .board { grid-template-columns: 1fr; }
+    #map { height: 320px; }
+  }
+</style>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>FleetOS</h1>
+      <span class="tag">Dispatcher</span>
+    </div>
+    <span class="clock" id="clock">--:--:--</span>
+    <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Live</span></span>
+    <button id="pauseBtn" aria-label="Pause live simulation">Pause</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="kpis" id="kpis" aria-label="Fleet summary"></section>
+
+  <section class="split">
+    <div class="panel map-wrap">
+      <div class="panel-head">
+        <h2>Live fleet map</h2>
+        <span class="sub" id="mapSub">San Francisco base</span>
+      </div>
+      <canvas id="map"></canvas>
+      <span class="schematic-tag">Schematic · demo telematics</span>
+      <div class="legend" id="legend">
+        <span class="k"><span class="swatch" style="background:var(--ok)"></span>Active</span>
+        <span class="k"><span class="swatch" style="background:var(--route)"></span>En route</span>
+        <span class="k"><span class="swatch" style="background:var(--warn)"></span>Maintenance</span>
+        <span class="k"><span class="swatch" style="background:var(--accent)"></span>Place / geofence</span>
+      </div>
+      <div id="tooltip" hidden></div>
+    </div>
+
+    <div class="panel feed">
+      <div class="panel-head">
+        <h2>Telemetry feed</h2>
+        <span class="sub" id="feedRate">POST /telemetry</span>
+      </div>
+      <div class="feed-list" id="feedList"></div>
+    </div>
+  </section>
+
+  <section class="board" id="board" aria-label="Dispatch board"></section>
+
+  <div class="note">
+    <span>⚞</span>
+    <span>Interactive demo — telematics are simulated in your browser (no live backend).
+    The real stack streams <code>POST /api/v1/telemetry</code> → Redis → WebSocket, with
+    PostGIS <code>ST_DWithin</code> geospatial queries. Assign an order to watch a vehicle
+    flip to <em>en route</em> on the map.</span>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  "use strict";
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ── geography (schematic bounding box over San Francisco) ──
+  const BBOX = { minLng: -122.455, maxLng: -122.383, minLat: 37.745, maxLat: 37.807 };
+
+  const ROADS = [
+    [[-122.446, 37.773], [-122.393, 37.796]],   // Market
+    [[-122.421, 37.748], [-122.421, 37.804]],   // Van Ness
+    [[-122.449, 37.753], [-122.398, 37.792]],   // Mission
+    [[-122.405, 37.747], [-122.398, 37.806]],   // Embarcadero
+    [[-122.452, 37.784], [-122.388, 37.772]],   // Geary
+    [[-122.44, 37.762], [-122.39, 37.786]],     // Folsom
+  ];
+  // Bay water region (east edge), lng/lat polygon.
+  const WATER = [
+    [-122.393, 37.807], [-122.383, 37.807], [-122.383, 37.745],
+    [-122.4, 37.745], [-122.398, 37.78], [-122.393, 37.8],
+  ];
+
+  const PLACES = [
+    { name: "Central Warehouse", lng: -122.3965, lat: 37.7936, geofence: [
+      [-122.4005, 37.7955], [-122.3925, 37.7955], [-122.3925, 37.7915], [-122.4005, 37.7915],
+    ] },
+    { name: "Mission Zone", lng: -122.4148, lat: 37.7599 },
+    { name: "Marina Dock", lng: -122.432, lat: 37.803 },
+  ];
+
+  // ── seed fleet ──
+  const VSTATUS = { active: "active", maintenance: "maintenance", en_route: "en_route" };
+  const vehicles = [
+    { id: "v1", name: "Truck 01", plate: "FLEET-001", type: "truck", status: "active", lng: -122.4193, lat: 37.7793, speed: 0, fuel: 84 },
+    { id: "v2", name: "Van 02", plate: "FLEET-002", type: "van", status: "active", lng: -122.4094, lat: 37.7849, speed: 0, fuel: 77 },
+    { id: "v3", name: "Van 03", plate: "FLEET-003", type: "van", status: "en_route", lng: -122.4300, lat: 37.7699, speed: 38, fuel: 61 },
+    { id: "v4", name: "Car 04", plate: "FLEET-004", type: "car", status: "maintenance", lng: -122.4148, lat: 37.7599, speed: 0, fuel: 45 },
+    { id: "v5", name: "Truck 05", plate: "FLEET-005", type: "truck", status: "en_route", lng: -122.4020, lat: 37.7900, speed: 26, fuel: 69 },
+  ];
+  const drivers = [
+    { id: "d1", name: "Alex Rivera", status: "available", vehicleId: null },
+    { id: "d2", name: "Sam Chen", status: "available", vehicleId: null },
+    { id: "d3", name: "Jordan Blake", status: "on_trip", vehicleId: "v3" },
+    { id: "d4", name: "Taylor Kim", status: "off_duty", vehicleId: null },
+    { id: "d5", name: "Priya Nair", status: "on_trip", vehicleId: "v5" },
+  ];
+  let orders = [
+    { id: "o1", tn: "FLT-1A2B", pickup: "Central Warehouse", dropoff: "Mission Zone", status: "pending", driverId: null, vehicleId: null },
+    { id: "o2", tn: "FLT-3C4D", pickup: "Central Warehouse", dropoff: "Marina Dock", status: "pending", driverId: null, vehicleId: null },
+    { id: "o3", tn: "FLT-5E6F", pickup: "Marina Dock", dropoff: "Mission Zone", status: "en_route", driverId: "d3", vehicleId: "v3" },
+    { id: "o4", tn: "FLT-7G8H", pickup: "Central Warehouse", dropoff: "Marina Dock", status: "dispatched", driverId: "d5", vehicleId: "v5" },
+    { id: "o5", tn: "FLT-9J0K", pickup: "Mission Zone", dropoff: "Central Warehouse", status: "completed", driverId: null, vehicleId: null },
+  ];
+
+  const byId = (arr, id) => arr.find((x) => x.id === id);
+
+  // ── canvas + palette ──
+  const canvas = document.getElementById("map");
+  const ctx = canvas.getContext("2d");
+  const tooltip = document.getElementById("tooltip");
+  let W = 0, H = 0, dpr = 1;
+  let PAL = {};
+
+  function refreshPalette() {
+    const cs = getComputedStyle(document.documentElement);
+    const g = (n) => cs.getPropertyValue(n).trim();
+    PAL = {
+      text: g("--text"), muted: g("--muted"), accent: g("--accent"),
+      ok: g("--ok"), route: g("--route"), warn: g("--warn"),
+      grid: g("--grid"), road: g("--road"), water: g("--water"),
+      surface: g("--surface"), border: g("--border"),
+    };
+  }
+  function statusColor(s) {
+    return s === "en_route" ? PAL.route : s === "maintenance" ? PAL.warn : PAL.ok;
+  }
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = rect.width; H = rect.height;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  const project = (lng, lat) => ({
+    x: ((lng - BBOX.minLng) / (BBOX.maxLng - BBOX.minLng)) * W,
+    y: (1 - (lat - BBOX.minLat) / (BBOX.maxLat - BBOX.minLat)) * H,
+  });
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // water
+    ctx.beginPath();
+    WATER.forEach((p, i) => { const q = project(p[0], p[1]); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
+    ctx.closePath();
+    ctx.fillStyle = PAL.water; ctx.fill();
+
+    // grid
+    ctx.strokeStyle = PAL.grid; ctx.lineWidth = 1;
+    const step = 46;
+    for (let x = (W % step) / 2; x < W; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = (H % step) / 2; y < H; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // roads
+    ctx.strokeStyle = PAL.road; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+    ROADS.forEach((r) => {
+      ctx.beginPath();
+      r.forEach((p, i) => { const q = project(p[0], p[1]); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
+      ctx.stroke();
+    });
+
+    // places + geofences
+    PLACES.forEach((pl) => {
+      if (pl.geofence) {
+        ctx.beginPath();
+        pl.geofence.forEach((p, i) => { const q = project(p[0], p[1]); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
+        ctx.closePath();
+        ctx.fillStyle = withAlpha(PAL.accent, 0.1); ctx.fill();
+        ctx.strokeStyle = withAlpha(PAL.accent, 0.55); ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]);
+      }
+      const q = project(pl.lng, pl.lat);
+      ctx.save();
+      ctx.translate(q.x, q.y); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = PAL.accent;
+      ctx.fillRect(-4, -4, 8, 8);
+      ctx.restore();
+      ctx.fillStyle = PAL.muted;
+      ctx.font = '11px "IBM Plex Mono", monospace';
+      ctx.textAlign = "left";
+      ctx.fillText(pl.name, q.x + 9, q.y + 3);
+    });
+
+    // vehicles
+    vehicles.forEach((v) => {
+      const q = project(v.lng, v.lat);
+      v._sx = q.x; v._sy = q.y;
+      const c = statusColor(v.status);
+      if (!reduceMotion && v.status === "en_route") {
+        ctx.beginPath(); ctx.arc(q.x, q.y, 12, 0, Math.PI * 2);
+        ctx.fillStyle = withAlpha(c, 0.14); ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(q.x, q.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = c; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = PAL.surface; ctx.stroke();
+    });
+  }
+
+  function withAlpha(color, a) {
+    // color may be hex (#rrggbb) or rgb(...) — normalise to rgba
+    if (color.startsWith("#")) {
+      const n = parseInt(color.slice(1), 16);
+      return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+    }
+    if (color.startsWith("rgb(")) return color.replace("rgb(", "rgba(").replace(")", `, ${a})`);
+    return color;
+  }
+
+  // ── simulation ──
+  let paused = false;
+  const targets = {};
+  vehicles.forEach((v) => (targets[v.id] = { lng: v.lng, lat: v.lat }));
+
+  function clampLng(x) { return Math.max(BBOX.minLng + 0.002, Math.min(BBOX.maxLng - 0.002, x)); }
+  function clampLat(x) { return Math.max(BBOX.minLat + 0.002, Math.min(BBOX.maxLat - 0.002, x)); }
+
+  function tick() {
+    if (paused) return;
+    vehicles.forEach((v) => {
+      if (v.status === "maintenance") { v.speed = 0; return; }
+      const moving = v.status === "en_route";
+      const amp = moving ? 0.0055 : 0.0016;
+      targets[v.id].lng = clampLng(v.lng + (Math.random() - 0.5) * amp * 2);
+      targets[v.id].lat = clampLat(v.lat + (Math.random() - 0.5) * amp * 2);
+      v.speed = moving
+        ? Math.round(28 + Math.random() * 34)
+        : Math.max(0, Math.round((Math.random() < 0.5 ? 0 : 8 + Math.random() * 14)));
+      v.fuel = Math.max(6, +(v.fuel - (moving ? 0.25 : 0.04) - Math.random() * 0.2).toFixed(1));
+      logTelemetry(v);
+    });
+  }
+
+  function lerpFrame() {
+    let moved = false;
+    vehicles.forEach((v) => {
+      const t = targets[v.id];
+      if (reduceMotion) { v.lng = t.lng; v.lat = t.lat; return; }
+      const k = 0.06;
+      if (Math.abs(t.lng - v.lng) > 1e-6 || Math.abs(t.lat - v.lat) > 1e-6) {
+        v.lng += (t.lng - v.lng) * k; v.lat += (t.lat - v.lat) * k; moved = true;
+      }
+    });
+    draw();
+    if (hover.id) positionTooltip();
+    requestAnimationFrame(lerpFrame);
+    return moved;
+  }
+
+  // ── telemetry feed ──
+  const feedList = document.getElementById("feedList");
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function fmtTime(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+  function logTelemetry(v) {
+    const el = document.createElement("div");
+    el.className = "feed-item";
+    el.innerHTML =
+      `<span class="t">${fmtTime(new Date())}</span>` +
+      `<span class="v"><span class="veh-dot" style="background:${statusColor(v.status)}"></span>${v.name}</span>` +
+      `<span class="d">${v.speed} km/h · ${v.fuel.toFixed(0)}%</span>`;
+    feedList.prepend(el);
+    while (feedList.childElementCount > 40) feedList.lastElementChild.remove();
+  }
+
+  // ── KPIs ──
+  function renderKpis() {
+    const active = vehicles.filter((v) => v.status === "active").length;
+    const enroute = vehicles.filter((v) => v.status === "en_route").length;
+    const maint = vehicles.filter((v) => v.status === "maintenance").length;
+    const avail = drivers.filter((d) => d.status === "available").length;
+    const onTrip = drivers.filter((d) => d.status === "on_trip").length;
+    const openOrders = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled").length;
+    const cells = [
+      { n: vehicles.length, l: "Vehicles", c: "" },
+      { n: active, l: "Active", c: "ok" },
+      { n: enroute, l: "En route", c: "route" },
+      { n: maint, l: "Maintenance", c: "warn" },
+      { n: `${avail}/${onTrip}`, l: "Drivers free / trip", c: "" },
+      { n: openOrders, l: "Open orders", c: "" },
+    ];
+    document.getElementById("kpis").innerHTML = cells
+      .map((k) => `<div class="kpi"><div class="n ${k.c}">${k.n}</div><div class="l">${k.l}</div></div>`)
+      .join("");
+  }
+
+  // ── board ──
+  const COLS = [
+    { key: "pending", title: "Pending", statuses: ["pending"] },
+    { key: "assigned", title: "Assigned", statuses: ["dispatched"] },
+    { key: "en_route", title: "En Route", statuses: ["en_route"] },
+    { key: "completed", title: "Completed", statuses: ["completed"] },
+  ];
+  const driverName = (id) => (byId(drivers, id) || {}).name || "—";
+
+  function renderBoard() {
+    const board = document.getElementById("board");
+    board.innerHTML = COLS.map((col) => {
+      const items = orders.filter((o) => col.statuses.includes(o.status));
+      const cards = items.length
+        ? items.map((o) => {
+            let action = "";
+            if (o.status === "pending") action = `<button class="btn-accent" data-act="assign" data-id="${o.id}">Assign</button>`;
+            else if (o.status === "dispatched") action = `<button data-act="start" data-id="${o.id}">Start trip</button>`;
+            else if (o.status === "en_route") action = `<button data-act="complete" data-id="${o.id}">Complete</button>`;
+            const veh = o.vehicleId ? (byId(vehicles, o.vehicleId) || {}).name : null;
+            return (
+              `<div class="order">` +
+              `<div class="tn">${o.tn}</div>` +
+              `<div class="route-line">${o.pickup} → ${o.dropoff}</div>` +
+              `<div class="meta">Driver: ${driverName(o.driverId)}${veh ? " · " + veh : ""}</div>` +
+              (action ? `<div class="actions">${action}</div>` : "") +
+              `</div>`
+            );
+          }).join("")
+        : `<div class="empty">no orders</div>`;
+      return (
+        `<div class="col" data-col="${col.key}">` +
+        `<div class="col-head"><span class="title">${col.title}</span><span class="count">${items.length}</span></div>` +
+        `<div class="cards">${cards}</div>` +
+        `</div>`
+      );
+    }).join("");
+  }
+
+  document.getElementById("board").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const o = byId(orders, btn.dataset.id);
+    if (!o) return;
+    if (btn.dataset.act === "assign") assign(o);
+    else if (btn.dataset.act === "start") { o.status = "en_route"; toast(`${o.tn} started — en route`); }
+    else if (btn.dataset.act === "complete") complete(o);
+    renderBoard(); renderKpis();
+  });
+
+  function assign(o) {
+    const driver = drivers.find((d) => d.status === "available");
+    const vehicle = vehicles.find((v) => v.status === "active");
+    if (!driver || !vehicle) { toast("No available driver / vehicle"); return; }
+    o.driverId = driver.id; o.vehicleId = vehicle.id; o.status = "dispatched";
+    driver.status = "on_trip"; driver.vehicleId = vehicle.id;
+    vehicle.status = "en_route";
+    toast(`${o.tn} → ${driver.name} · ${vehicle.name}`);
+  }
+  function complete(o) {
+    o.status = "completed";
+    const driver = byId(drivers, o.driverId); const vehicle = byId(vehicles, o.vehicleId);
+    if (driver) { driver.status = "available"; driver.vehicleId = null; }
+    if (vehicle) { vehicle.status = "active"; }
+    toast(`${o.tn} delivered ✓`);
+  }
+
+  // ── hover tooltip (canvas hit-test) ──
+  const hover = { id: null, x: 0, y: 0 };
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    let found = null;
+    for (const v of vehicles) {
+      if (v._sx == null) continue;
+      if ((mx - v._sx) ** 2 + (my - v._sy) ** 2 <= 121) { found = v; break; }
+    }
+    if (found) {
+      hover.id = found.id; hover.x = found._sx; hover.y = found._sy;
+      const d = drivers.find((dr) => dr.vehicleId === found.id);
+      tooltip.hidden = false;
+      tooltip.innerHTML =
+        `<div class="tt-name">${found.name} · ${found.plate}</div>` +
+        `<div class="tt-row">status ${found.status.replace("_", " ")}</div>` +
+        `<div class="tt-row">${found.speed} km/h · fuel ${found.fuel.toFixed(0)}%</div>` +
+        `<div class="tt-row">driver ${d ? d.name : "—"}</div>`;
+      positionTooltip();
+      canvas.style.cursor = "pointer";
+    } else {
+      hover.id = null; tooltip.hidden = true; canvas.style.cursor = "default";
+    }
+  });
+  canvas.addEventListener("mouseleave", () => { hover.id = null; tooltip.hidden = true; });
+  function positionTooltip() {
+    const v = byId(vehicles, hover.id); if (!v) return;
+    tooltip.style.left = v._sx + "px";
+    tooltip.style.top = v._sy + "px";
+  }
+
+  // ── clock + controls ──
+  function renderClock() { document.getElementById("clock").textContent = fmtTime(new Date()) + " PT"; }
+  const pauseBtn = document.getElementById("pauseBtn");
+  const liveBadge = document.getElementById("liveBadge");
+  const liveText = document.getElementById("liveText");
+  pauseBtn.addEventListener("click", () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? "Resume" : "Pause";
+    liveBadge.classList.toggle("paused", paused);
+    liveText.textContent = paused ? "Paused" : "Live";
+  });
+
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
+  // ── boot ──
+  function boot() {
+    refreshPalette(); resize(); draw();
+    renderKpis(); renderBoard();
+    // prime the feed so it isn't empty at rest
+    [...vehicles].reverse().forEach(logTelemetry);
+    requestAnimationFrame(lerpFrame);
+    setInterval(tick, 1400);
+    setInterval(() => { renderClock(); renderKpis(); }, 1000);
+    renderClock();
+  }
+  window.addEventListener("resize", () => { resize(); draw(); });
+  const mql = window.matchMedia("(prefers-color-scheme: dark)");
+  (mql.addEventListener ? mql.addEventListener.bind(mql, "change") : mql.addListener.bind(mql))(() => { refreshPalette(); draw(); });
+  new MutationObserver(() => { refreshPalette(); draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  boot();
+</script>

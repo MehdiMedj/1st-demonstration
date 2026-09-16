@@ -1,0 +1,20 @@
+# Run the NestJS backend instead of the FastAPI one, reusing the same db/redis.
+#   docker compose -f docker-compose.yml -f docker-compose.nestjs.yml up --build
+# This overrides the `backend` service to build from ./backend-nestjs.
+services:
+  backend:
+    build:
+      context: ./backend-nestjs
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      DATABASE_USER: ${POSTGRES_USER:-fleetos}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-fleetos}
+      DATABASE_NAME: ${POSTGRES_DB:-fleetos}
+      REDIS_URL: redis://redis:6379/0
+      PORT: "8000"
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    # Idempotent migration (bootstraps schema if empty), then serve.
+    command: >
+      sh -c "npm run migration:run:prod && node dist/main.js"
