@@ -53,6 +53,20 @@ Then:
 - Dispatcher dashboard: http://localhost:3000/dashboard
 - Postgres:             localhost:5432 (fleetos / fleetos)
 
+### Backend variants (FastAPI or NestJS)
+
+The default `backend/` service is **FastAPI**. A fully equivalent **NestJS**
+implementation lives in `backend-nestjs/` — same schema, same Redis channel,
+same HTTP + native-WebSocket contract, so the frontend works against either
+unchanged. To run the NestJS backend instead:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.nestjs.yml up --build
+```
+
+Run only one backend's migrations against a given database (both produce the
+identical schema).
+
 Migrations run automatically on backend startup (`alembic upgrade head`). To seed demo
 data:
 

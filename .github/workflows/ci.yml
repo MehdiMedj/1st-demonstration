@@ -62,6 +62,50 @@ jobs:
       - name: Run tests
         run: pytest
 
+  backend-nestjs:
+    name: Backend NestJS (build + migration)
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: fleetos
+          POSTGRES_PASSWORD: fleetos
+          POSTGRES_DB: fleetos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fleetos -d fleetos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_HOST: localhost
+      DATABASE_PORT: "5432"
+      DATABASE_USER: fleetos
+      DATABASE_PASSWORD: fleetos
+      DATABASE_NAME: fleetos
+
+    defaults:
+      run:
+        working-directory: backend-nestjs
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend-nestjs/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Run migration (idempotent bootstrap)
+        run: npm run migration:run:prod
+
   frontend:
     name: Frontend (typecheck + build)
     runs-on: ubuntu-latest
