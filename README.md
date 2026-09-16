@@ -168,6 +168,14 @@ uvicorn app.main:app --reload
 cd frontend && npm install && npm run dev
 ```
 
+## Deploy to a public URL
+
+The app is host-agnostic (managed `DATABASE_URL` auto-handled; frontend API/WS
+URLs resolved at runtime). A one-click **Render blueprint** ([`render.yaml`](./render.yaml))
+provisions managed PostgreSQL+PostGIS, Redis, and both web services. Full
+instructions — plus Railway and single-VM options — are in
+**[DEPLOY.md](./DEPLOY.md)**.
+
 ## Repository layout
 
 ```

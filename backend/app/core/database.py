@@ -12,10 +12,11 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import settings
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    settings.sqlalchemy_async_url,
     echo=settings.DB_ECHO,
     pool_pre_ping=True,
     future=True,
+    connect_args=settings.db_connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(

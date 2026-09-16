@@ -1,16 +1,12 @@
 import type { Driver, Order, Vehicle } from "./types";
-
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-const ORG_ID =
-  process.env.NEXT_PUBLIC_ORG_ID ?? "00000000-0000-0000-0000-000000000001";
+import { getApiBase, getOrgId } from "./runtime-config";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}/api/v1${path}`, {
+  const res = await fetch(`${getApiBase()}/api/v1${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      "X-Org-Id": ORG_ID,
+      "X-Org-Id": getOrgId(),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
@@ -24,7 +20,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  orgId: ORG_ID,
+  get orgId() {
+    return getOrgId();
+  },
 
   listVehicles: () => request<Vehicle[]>("/vehicles"),
   listDrivers: () => request<Driver[]>("/drivers"),

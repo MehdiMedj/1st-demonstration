@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.models import Base  # noqa: F401 — registers all tables on Base.metadata
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
+config.set_main_option("sqlalchemy.url", settings.sqlalchemy_sync_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -27,7 +27,7 @@ def _include_object(obj, name, type_, reflected, compare_to):
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.DATABASE_URL_SYNC,
+        url=settings.sqlalchemy_sync_url,
         target_metadata=target_metadata,
         literal_binds=True,
         include_object=_include_object,

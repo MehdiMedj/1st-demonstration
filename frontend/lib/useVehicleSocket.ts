@@ -3,10 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TelemetryEvent, Vehicle } from "./types";
 import { api } from "./api";
-
-const WS_URL =
-  process.env.NEXT_PUBLIC_WS_URL ??
-  "ws://localhost:8000/api/v1/ws/telemetry";
+import { getWsUrl } from "./runtime-config";
 
 type VehicleMap = Record<string, Vehicle>;
 
@@ -38,7 +35,7 @@ export function useVehicleSocket() {
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
     const connect = () => {
-      const url = `${WS_URL}?org_id=${encodeURIComponent(api.orgId)}`;
+      const url = `${getWsUrl()}?org_id=${encodeURIComponent(api.orgId)}`;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
