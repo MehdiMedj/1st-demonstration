@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: fleetos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fleetos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fleetos}
+      POSTGRES_DB: ${POSTGRES_DB:-fleetos}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fleetos} -d ${POSTGRES_DB:-fleetos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: fleetos-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fleetos-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Force container-network hostnames regardless of .env values.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fleetos}:${POSTGRES_PASSWORD:-fleetos}@db:5432/${POSTGRES_DB:-fleetos}
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-fleetos}:${POSTGRES_PASSWORD:-fleetos}@db:5432/${POSTGRES_DB:-fleetos}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Apply migrations, then boot the API.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fleetos-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8000/api/v1/ws/telemetry}
+      NEXT_PUBLIC_ORG_ID: ${NEXT_PUBLIC_ORG_ID:-00000000-0000-0000-0000-000000000001}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
